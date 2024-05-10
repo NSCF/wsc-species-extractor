@@ -1,74 +1,79 @@
-from urllib.parse import urljoin
-import requests
-from bs4 import BeautifulSoup
+from datetime import datetime
+import csv, time
+from functions import get_family_urls, get_genus_page_urls, get_genus_page_soup, check_genus_page_match, get_species_and_synonyms
 
-base_url = 'https://wsc.nmbe.ch'
-families_url = urljoin(base_url, "families")
+start = time.perf_counter()
+
 print('fetching family list')
-families_page = requests.get(families_url)
+family_urls = get_family_urls('families')
+print('got', len(family_urls.keys()), 'families')
 
-# fetch the list of families
-families_soup = BeautifulSoup(families_page.content, "html.parser")
-families_main = families_soup.find('main')
-families_table = families_main.find('table')
-families_table_body = families_table.find('tbody')
-families_table_rows = families_table_body.find_all('tr')
-print('There are', len(families_table_rows), 'families')
-
-problems = []
-
-# for each family get the list of genera
-for families_table_row in families_table_rows:
-  family_name_td = families_table_row.find('td')
-  family_name = family_name_td.find('strong')
+# for each family get the list of genera and parse
+problems = {}
+records = []
+# for testing, set to a high number to get all the families
+family_limit = 1000
+family_count = 0
+for family in family_urls:
+  print('fetching genera for', family)
+  genus_page_urls = get_genus_page_urls(family_urls[family])
   
-  print('fetching genera for', family_name.text)
-  genera_url_elem = families_table_row.find(title="Genera list")
-  genera_url = genera_url_elem['href']
-  genera_page = requests.get(urljoin(base_url, genera_url))
-  genera_soup = BeautifulSoup(genera_page.content, 'html.parser')
-  genera_main = genera_soup.find('main') 
-  genera_table = genera_main.find('table')
-  genera_table_body = genera_table.find('tbody')
-  genera_table_rows = genera_table_body.find_all('tr')
-
-  if len(genera_table_rows) == 1:
-    print(family_name.text, 'has 1 genus')
+  genus_count = len(genus_page_urls.keys())
+  if genus_count == 1:
+    print(family, 'has one genus')
   else:
-    print(family_name.text, 'has', len(genera_table_rows), 'genera')
+    print(family, 'has', genus_count, 'genera')
 
-  for genus_row in genera_table_rows:
-    
-    genus_name_td = genus_row.find('td')
-    genus_name = genus_name_td.find('strong').text
-    genus_url_elem = genus_row.find(title="Show species entries")
-    genus_catalog_url = genus_url_elem['href']
-    genus_catalog_page = requests.get(urljoin(base_url, genus_catalog_url))
-    genus_catalog_page_soup = BeautifulSoup(genus_catalog_page.content, 'html.parser')
-    genus_catalog_page_main = genus_catalog_page_soup.find('main')
+  for genus in genus_page_urls:
+    genus_page = get_genus_page_soup(genus_page_urls[genus])
+    if check_genus_page_match(genus, genus_page):
+      species_and_synonyms = get_species_and_synonyms(genus_page)
+      valid_names = list(filter(lambda x: x['acceptedNameID'] is None, species_and_synonyms))
+      print(genus, 'has', len(valid_names), 'species and', len(species_and_synonyms) - len(valid_names), 'synonyms')
+      records += species_and_synonyms
+    else:
+      if family in problems:
+        problems[family].append(genus)
+      else:
+        problems[family] = [genus]
+  
+  # just for testing
+  family_count += 1
+  if family_count == family_limit:
+    break
 
-    
-    
-    page_genus_name_elem =  genus_catalog_page_main.find(class_="genusTitle")
-    page_genus_name = page_genus_name_elem.find('strong').text
-    
-    if genus_name != page_genus_name:
-      problems.append(genus_name)
-      continue
-    
-    genus_species = []
+end = time.perf_counter()
+elapsed = end - start
+hours, remainder = divmod(elapsed, 3600)
+minutes, seconds = divmod(remainder, 60)
+  
+if len(problems.keys()) > 0:
+  print('There were problems with the following taxa:')
+  for family in problems:
+    print(family +':', '|'.join(problems[family]))
 
-    # we need to iterate over divs of main only, because we don't want the white space between them
-    first_species = genus_catalog_page_main.find('div', class_='speciesTitle')
-    first_species_detail = first_species.find_next_sibling('div')
+total_valid_names = list(filter(lambda x: x['acceptedNameID'] is None, records))
+print('Total valid names:', len(total_valid_names))
+print('Total synonyms:', len(records) - len(total_valid_names))
+print('Total time:', f"{int(hours):02}h{int(minutes):02}m{round(seconds):02}s")
+print('writing results file...')
+today = datetime.today().isoformat().split('T')[0].replace('-','')
+file_name = 'wsc-species-and-synonyms-' + today + '.csv'
 
-    genus_species.append( {"species": first_species, "details": first_species_detail })
+with open(file_name, 'w', encoding='utf8', newline='', errors='ignore') as csvfile:
+  writer = csv.DictWriter(csvfile, fieldnames=records[0].keys(), )
+  writer.writeheader()
+  writer.writerows(records)
 
-    next_species = first_species_detail.find_next_sibling('div')
-    while next_species is not None:
-      next_species_detail = next_species.find_next_sibling('div')
-      genus_species.append( {"species": next_species, "details": next_species_detail })
-      next_species = next_species_detail.find_next_sibling('div')
+print('all done!')  
+
+  
+    
+
+
+      
+    
+
     
 
 
