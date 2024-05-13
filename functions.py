@@ -76,7 +76,8 @@ def parse_species_title(species_title_elem):
     "name": species_name, 
     "author": species_author,
     "hasDescription": None, 
-    "lsid": species_lsid
+    "lsid": species_lsid, 
+    "fullref": None
   }
 
 
@@ -101,6 +102,10 @@ def get_species_synonyms(species_name, speciesID, species_taxref_elem):
     if ref_name != species_name and ref_name not in synonyms:
 
       ref_content = ref.text.split(':')[1]
+
+      #these are also not synonyms
+      if 'misidentified' in ref_content.lower():
+        continue
       
       has_description = False
       if 'D' in ref_content:
@@ -127,7 +132,8 @@ def get_species_synonyms(species_name, speciesID, species_taxref_elem):
         "name": ref_name, 
         "author": ref_author, 
         "hasDescription": has_description,
-        "lsid": synonym_lsid
+        "lsid": synonym_lsid,
+        "fullref": ref_content
       }
     
   return synonyms.values()

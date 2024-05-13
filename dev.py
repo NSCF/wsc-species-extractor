@@ -1,3 +1,5 @@
+# just for running various bits of code...
+
 from functions import get_genus_page_soup, get_species_and_synonyms
 
 url = 'genus/10'
