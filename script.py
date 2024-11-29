@@ -1,6 +1,17 @@
+# This is still under construction. The original idea was to try and infer synonyms from the name usages listed under each
+# species. But not very easy, there are lots of nuances in the WSC, such as informal names, quoted names, etc. The names are
+# listed as they were originally published, without the necessary corrections to be code compliant. The WSC also 
+# change the names when species are moved from one genus to another to match the gender, so it's difficult to match things
+# up using the synonyms and transfers sections.
+
+# Overall an interesting exercise in scraping a website, to see inconsistencies and glitches, and all sorts of other things. 
+# Noteably the pages are designed for scraping, no data attributes, much of the data are outside of tags, etc.
+
+#  Decided just to use the datasets that were sent to me originally, they might not be as comprehensive but hopefully good enough!
+
 from datetime import datetime
 import csv, time
-from functions import get_family_urls, get_genus_page_urls, get_genus_page_soup, check_genus_page_match, get_species_and_synonyms
+from functions import get_family_urls, get_genus_page_urls, get_genus_page_soup, check_genus_page_match, get_species_and_chrysonyms
 
 start = time.perf_counter()
 
@@ -27,7 +38,7 @@ for family in family_urls:
   for genus in genus_page_urls:
     genus_page = get_genus_page_soup(genus_page_urls[genus])
     if check_genus_page_match(genus, genus_page):
-      species_and_synonyms = get_species_and_synonyms(genus_page)
+      species_and_synonyms = get_species_and_chrysonyms(genus_page)
       valid_names = list(filter(lambda x: x['acceptedNameID'] is None, species_and_synonyms))
       print(genus, 'has', len(valid_names), 'species and', len(species_and_synonyms) - len(valid_names), 'synonyms')
       records += species_and_synonyms
